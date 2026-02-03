@@ -4,11 +4,12 @@ services:
     runtime: python
     plan: starter
     buildCommand: |
+      pip install uv
       cd apps/api
-      pip install -r requirements.txt
+      uv sync --extra dev --frozen
     startCommand: |
       cd apps/api
-      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
@@ -32,8 +33,6 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: POSTHOG_API_KEY
-        sync: false
-      - key: SESSION_SECRET
         sync: false
       - key: ALLOWED_CSV_HOSTS
         sync: false
