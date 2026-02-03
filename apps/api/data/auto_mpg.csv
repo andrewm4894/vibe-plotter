@@ -1,0 +1,11 @@
+mpg,cylinders,displacement,horsepower,weight,acceleration,model_year,origin,name
+18.0,8,307.0,130,3504,12.0,70,1,chevrolet chevelle malibu
+15.0,8,350.0,165,3693,11.5,70,1,buick skylark 320
+18.0,8,318.0,150,3436,11.0,70,1,plymouth satellite
+16.0,8,304.0,150,3433,12.0,70,1,amc rebel sst
+17.0,8,302.0,140,3449,10.5,70,1,ford torino
+15.0,8,429.0,198,4341,10.0,70,1,ford galaxie 500
+14.0,8,454.0,220,4354,9.0,70,1,chevrolet impala
+24.0,4,113.0,95,2372,15.0,70,3,toyota corona mark ii
+22.0,6,198.0,95,2833,15.5,70,1,plymouth duster
+27.0,4,97.0,88,2130,14.5,70,3,datsun pl510

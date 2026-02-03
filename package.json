@@ -1,0 +1,15 @@
+{
+  "name": "vibe-plotter",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "make dev",
+    "dev:web": "pnpm -C apps/web dev",
+    "dev:api": "make api",
+    "test:api": "cd apps/api && pytest",
+    "test:web": "pnpm -C apps/web test:e2e"
+  }
+}

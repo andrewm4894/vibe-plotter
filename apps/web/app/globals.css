@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink text-mist font-display;
+  background-image: theme("backgroundImage.hero");
+  min-height: 100vh;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(rgba(231,238,252,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(231,238,252,0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.panel {
+  @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-glow;
+}
+
+.panel-title {
+  @apply text-sm uppercase tracking-[0.25em] text-white/60 font-mono;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-full bg-splash px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-splash/30 transition hover:translate-y-[-1px] hover:bg-splash/90;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 transition hover:border-white/40 hover:text-white;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70;
+}
+
+.table-grid {
+  @apply w-full border-collapse text-left text-sm text-white/80;
+}
+
+.table-grid th,
+.table-grid td {
+  @apply border-b border-white/10 px-3 py-2;
+}
