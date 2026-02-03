@@ -391,8 +391,8 @@ export default function HomePage() {
                         }}
                         frames={plotJson.frames}
                         config={{ displaylogo: false, responsive: true }}
-                        onInitialized={(figure, div) => setGraphDiv(div)}
-                        onUpdate={(figure, div) => setGraphDiv(div)}
+                        onInitialized={(_figure: any, div: any) => setGraphDiv(div)}
+                        onUpdate={(_figure: any, div: any) => setGraphDiv(div)}
                         style={{ width: "100%", height: "420px" }}
                       />
                     </div>

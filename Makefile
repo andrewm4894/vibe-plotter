@@ -1,7 +1,7 @@
 WEB_PORT ?= 3000
 API_PORT ?= 8000
 
-.PHONY: help dev api web test test-api test-web lint lint-web install install-web install-api clean
+.PHONY: help dev api web test test-api test-web lint lint-web build-web install install-web install-api clean
 
 help:
 	@echo "Targets:"
@@ -11,6 +11,7 @@ help:
 	@echo "  make install     Install web + api deps"
 	@echo "  make install-web Install web deps (pnpm)"
 	@echo "  make install-api Install api deps (uv)"
+	@echo "  make build-web   Build Next.js for production"
 	@echo "  make test        Run backend tests"
 	@echo "  make test-web    Run Playwright tests"
 	@echo "  make lint-web    Run Next.js lint"
@@ -36,6 +37,9 @@ test-api:
 
 test-web:
 	@cd apps/web && pnpm test:e2e
+
+build-web:
+	@cd apps/web && pnpm build
 
 lint:
 	@cd apps/web && pnpm lint
