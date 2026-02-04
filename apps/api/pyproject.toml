@@ -13,12 +13,7 @@ dependencies = [
     "openai>=1.59.7",
     "plotly>=6.1.1",
     "kaleido>=1.0.0",
-    # plot-agent dependencies (until published to PyPI)
-    "langchain-core",
-    "langchain-openai",
-    "langgraph",
-    "matplotlib",
-    "numpy",
+    "plot-agent>=0.5.0",
 ]
 
 [project.optional-dependencies]
