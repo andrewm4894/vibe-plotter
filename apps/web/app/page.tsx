@@ -220,19 +220,16 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen px-6 py-10 md:px-10">
-      <header className="mx-auto flex max-w-6xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
+      <header className="mx-auto flex max-w-3xl flex-col items-center gap-2">
         <div className="flex items-center gap-4">
           <div className="rounded-2xl bg-white/10 px-4 py-3 text-xl font-semibold tracking-tight text-white">
             Vibe Plotter
           </div>
-          <span className="badge">LLM Analytics Demo</span>
-        </div>
-        <div className="text-sm text-white/70">
-          Session <span className="font-mono text-white/90">{sessionId || "loading"}</span>
+          <span className="text-sm text-white/50">rizzing up those plots</span>
         </div>
       </header>
 
-      <main className="mx-auto mt-10 grid max-w-6xl gap-8 lg:grid-cols-[360px_1fr]">
+      <main className="mx-auto mt-10 flex max-w-3xl flex-col gap-8">
         <section className="flex flex-col gap-6">
           <details className="panel p-6" open>
             <summary className="panel-title cursor-pointer">Dataset Loader</summary>

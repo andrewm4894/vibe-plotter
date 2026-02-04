@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from openai import OpenAI
 
 from .config import settings
@@ -136,7 +137,7 @@ def _simple_fallback(df: pd.DataFrame) -> PlotResult:
 
     return PlotResult(
         assistant_message=assistant_message,
-        plot_json=fig.to_plotly_json(),
+        plot_json=json.loads(pio.to_json(fig)),
         title=title,
         summary=summary,
         code=code,
@@ -156,6 +157,7 @@ def generate_plot(df: pd.DataFrame, message: str) -> PlotResult:
         response = client.chat.completions.create(
             model=settings.llm_model,
             temperature=0.3,
+            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT.strip()},
                 {"role": "user", "content": prompt},
@@ -166,6 +168,7 @@ def generate_plot(df: pd.DataFrame, message: str) -> PlotResult:
 
     elapsed_ms = int((time.time() - start) * 1000)
     content = response.choices[0].message.content or ""
+    print(f"[LLM] raw response ({len(content)} chars): {content[:500]}")
 
     parsed = _extract_json(content)
     code = parsed.get("code")
@@ -179,7 +182,7 @@ def generate_plot(df: pd.DataFrame, message: str) -> PlotResult:
 
     result = PlotResult(
         assistant_message=assistant_message,
-        plot_json=fig.to_plotly_json(),
+        plot_json=json.loads(pio.to_json(fig)),
         title=title,
         summary=summary,
         code=code,
