@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     allowed_csv_hosts: str | None = None
     web_origin: str = "http://localhost:3000"
     llm_disabled: bool = False
+    debug: bool = False
 
     @property
     def allowed_hosts_set(self) -> set[str] | None:

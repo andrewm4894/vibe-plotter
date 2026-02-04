@@ -1,116 +1,34 @@
+"""
+Plot agent adapter using the external plot-agent library.
+
+This module provides an adapter between vibe-plotter and the plot-agent library,
+managing per-session agents and converting results to the expected format.
+"""
 from __future__ import annotations
 
 import json
-import textwrap
+import logging
+import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import plotly.io as pio
-from openai import OpenAI
+
+from plot_agent import PlotAgent
 
 from .config import settings
 from .models import AppError, PlotResult
 
-SAFE_BUILTINS = {
-    "len": len,
-    "min": min,
-    "max": max,
-    "sum": sum,
-    "sorted": sorted,
-    "range": range,
-    "list": list,
-    "dict": dict,
-    "set": set,
-    "float": float,
-    "int": int,
-    "str": str,
-}
+logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """
-You are a data visualization agent.
-
-Return a JSON object with keys:
-- title: short chart title
-- summary: 1-2 sentences describing what the chart shows
-- assistant_message: a friendly response to the user (short)
-- code: Python code that builds a Plotly figure named `fig`
-
-Constraints for code:
-- Use only the variables: df, pd, px, go
-- Do not import modules
-- Do not read/write files or use network calls
-- Assign the final Plotly figure to a variable named `fig`
-"""
-
-
-def _truncate_rows(rows: List[Dict[str, Any]], max_rows: int = 10) -> List[Dict[str, Any]]:
-    return rows[:max_rows]
-
-
-def _build_prompt(df: pd.DataFrame, message: str) -> str:
-    sample_rows = df.head(10).to_dict(orient="records")
-    payload = {
-        "columns": list(df.columns),
-        "dtypes": {col: str(dtype) for col, dtype in df.dtypes.items()},
-        "sample_rows": _truncate_rows(sample_rows, 10),
-        "row_count": int(len(df)),
-    }
-    return textwrap.dedent(
-        f"""
-        User request: {message}
-
-        Dataset context:
-        {json.dumps(payload, indent=2)}
-        """
-    ).strip()
-
-
-def _get_llm_client() -> tuple[Optional[OpenAI], Optional[str]]:
-    if settings.llm_disabled:
-        return None, None
-    if settings.openrouter_api_key:
-        return OpenAI(api_key=settings.openrouter_api_key, base_url=settings.openrouter_base_url), "openrouter"
-    if settings.openai_api_key:
-        return OpenAI(api_key=settings.openai_api_key), "openai"
-    return None, None
-
-
-def _extract_json(text: str) -> Dict[str, Any]:
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    if "```" in text:
-        fence = text.split("```")
-        for i in range(len(fence) - 1):
-            if fence[i].strip().endswith("json"):
-                candidate = fence[i + 1].strip()
-                try:
-                    return json.loads(candidate)
-                except json.JSONDecodeError:
-                    continue
-    raise AppError("llm_parse_error", "LLM response was not valid JSON.")
-
-
-def _run_plot_code(code: str, df: pd.DataFrame) -> go.Figure:
-    local_vars: Dict[str, Any] = {"df": df, "pd": pd, "px": px, "go": go}
-    exec(code, {"__builtins__": SAFE_BUILTINS}, local_vars)
-    fig = local_vars.get("fig")
-    if fig is None:
-        raise AppError("plot_code_no_fig", "Plot code must define a `fig` variable.")
-    if not isinstance(fig, go.Figure):
-        try:
-            fig = go.Figure(fig)
-        except Exception as exc:
-            raise AppError("plot_code_invalid_fig", "Plot code did not produce a valid Plotly figure.") from exc
-    return fig
+# Per-session agent cache
+_agents: Dict[str, PlotAgent] = {}
 
 
 def _simple_fallback(df: pd.DataFrame) -> PlotResult:
+    """Generate a simple fallback chart when the LLM is unavailable or fails."""
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
     title = "Quick look"
     summary = "A fallback chart based on the first available numeric field."
@@ -145,49 +63,106 @@ def _simple_fallback(df: pd.DataFrame) -> PlotResult:
     )
 
 
-def generate_plot(df: pd.DataFrame, message: str) -> PlotResult:
-    client, provider = _get_llm_client()
-    if not client:
+def _get_or_create_agent(session_id: str) -> PlotAgent:
+    """Get or create a PlotAgent for the given session."""
+    if session_id not in _agents:
+        # Configure environment for external plot-agent library
+        # API key (prefer OpenRouter, fall back to OpenAI)
+        if settings.openrouter_api_key:
+            os.environ["OPENAI_API_KEY"] = settings.openrouter_api_key
+            os.environ["OPENAI_BASE_URL"] = settings.openrouter_base_url
+        elif settings.openai_api_key:
+            os.environ["OPENAI_API_KEY"] = settings.openai_api_key
+            os.environ.pop("OPENAI_BASE_URL", None)
+
+        # PostHog configuration
+        os.environ["POSTHOG_ENABLED"] = str(settings.posthog_enabled).lower()
+        if settings.posthog_api_key:
+            os.environ["POSTHOG_API_KEY"] = settings.posthog_api_key
+        if settings.posthog_host:
+            os.environ["POSTHOG_HOST"] = settings.posthog_host
+
+        # Session tracking
+        os.environ["POSTHOG_AI_SESSION_ID"] = session_id
+        os.environ["POSTHOG_DISTINCT_ID"] = session_id
+
+        # Determine if we should include plot images for PostHog
+        include_plot_image = settings.posthog_enabled
+
+        agent = PlotAgent(
+            model=settings.llm_model,
+            include_plot_image=include_plot_image,
+            debug=settings.debug,
+        )
+        _agents[session_id] = agent
+        logger.info(f"Created new PlotAgent for session {session_id}")
+
+    return _agents[session_id]
+
+
+def clear_agent(session_id: str) -> None:
+    """Clear the agent for a given session."""
+    if session_id in _agents:
+        del _agents[session_id]
+        logger.info(f"Cleared PlotAgent for session {session_id}")
+
+
+def generate_plot(df: pd.DataFrame, message: str, session_id: str = "default") -> PlotResult:
+    """
+    Generate a plot using the external plot-agent library.
+
+    Args:
+        df: The pandas dataframe to visualize.
+        message: The user's plot request.
+        session_id: The session ID for agent reuse and PostHog tracking.
+
+    Returns:
+        PlotResult with the generated plot and metadata.
+    """
+    # Check if LLM is disabled
+    if settings.llm_disabled:
         return _simple_fallback(df)
 
-    prompt = _build_prompt(df, message)
+    # Check for API key
+    if not settings.openai_api_key and not settings.openrouter_api_key:
+        logger.warning("No API key configured, using fallback")
+        return _simple_fallback(df)
 
     start = time.time()
+
     try:
-        response = client.chat.completions.create(
+        agent = _get_or_create_agent(session_id)
+        agent.set_df(df)
+
+        # Process the message through the agent
+        response = agent.process_message(message)
+        fig = agent.get_figure()
+
+        if fig is None:
+            logger.warning("Agent did not produce a figure, using fallback")
+            return _simple_fallback(df)
+
+        elapsed_ms = int((time.time() - start) * 1000)
+
+        # Get metadata from agent
+        title = agent.get_plot_title() or "Chart"
+        summary = agent.get_plot_summary() or response
+        code = agent.generated_code or ""
+
+        # Determine provider based on settings
+        provider = "openrouter" if settings.openrouter_api_key else "openai"
+
+        return PlotResult(
+            assistant_message=response,
+            plot_json=json.loads(pio.to_json(fig)),
+            title=title,
+            summary=summary,
+            code=code,
             model=settings.llm_model,
-            temperature=0.3,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT.strip()},
-                {"role": "user", "content": prompt},
-            ],
+            provider=provider,
+            elapsed_ms=elapsed_ms,
         )
+
     except Exception as exc:
-        raise AppError("llm_request_failed", f"LLM request failed: {exc}") from exc
-
-    elapsed_ms = int((time.time() - start) * 1000)
-    content = response.choices[0].message.content or ""
-    print(f"[LLM] raw response ({len(content)} chars): {content[:500]}")
-
-    parsed = _extract_json(content)
-    code = parsed.get("code")
-    if not code:
-        raise AppError("llm_missing_code", "LLM response did not include code.")
-
-    fig = _run_plot_code(code, df)
-    title = parsed.get("title") or (fig.layout.title.text if fig.layout.title else "Chart")
-    summary = parsed.get("summary") or "Chart generated from your dataset."
-    assistant_message = parsed.get("assistant_message") or summary
-
-    result = PlotResult(
-        assistant_message=assistant_message,
-        plot_json=json.loads(pio.to_json(fig)),
-        title=title,
-        summary=summary,
-        code=code,
-        model=settings.llm_model,
-        provider=provider,
-        elapsed_ms=elapsed_ms,
-    )
-    return result
+        logger.exception(f"Plot generation failed: {exc}")
+        raise AppError("plot_generation_failed", f"Plot generation failed: {exc}") from exc

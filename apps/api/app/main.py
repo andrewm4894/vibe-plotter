@@ -101,7 +101,7 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
         },
     )
 
-    result = generate_plot(session.df, request.message)
+    result = generate_plot(session.df, request.message, session_id=request.session_id)
 
     session.chat_history.append({"role": "assistant", "content": result.assistant_message})
     session.last_plot = result.plot_json
